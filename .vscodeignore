@@ -1,0 +1,10 @@
+.git/**
+.vscode/**
+samples/**
+tests/**
+src/**
+*.vsix
+tsconfig.json
+package-lock.json
+AGENT.md
+.DS_Store

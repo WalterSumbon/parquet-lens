@@ -1,0 +1,91 @@
+{
+  "name": "parquet-lens",
+  "displayName": "Parquet Lens",
+  "description": "View, query, and edit Parquet files with SQL and OpenAI-compatible NL2SQL.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Data Science",
+    "Other"
+  ],
+  "activationEvents": [
+    "onCustomEditor:parquetLens.editor"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "parquetLens.editor",
+        "displayName": "Parquet Lens",
+        "selector": [
+          {
+            "filenamePattern": "*.parquet"
+          },
+          {
+            "filenamePattern": "*.parq"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "configuration": {
+      "title": "Parquet Lens",
+      "properties": {
+        "parquetLens.nl2sql.baseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1",
+          "description": "OpenAI-compatible API base URL."
+        },
+        "parquetLens.nl2sql.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for the OpenAI-compatible service."
+        },
+        "parquetLens.nl2sql.model": {
+          "type": "string",
+          "default": "gpt-4.1-mini",
+          "description": "Model used for NL2SQL generation."
+        },
+        "parquetLens.nl2sql.promptTemplate": {
+          "type": "string",
+          "default": "Given this table schema:\\n{{schema}}\\n\\nWrite a read-only DuckDB SQL query against the table named data for this request:\\n{{nl}}\\n\\nReturn only SQL.",
+          "description": "Prompt template for NL2SQL. Must include {{nl}}. {{schema}} is also available."
+        },
+        "parquetLens.nl2sql.timeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 1000,
+          "description": "NL2SQL request timeout in milliseconds."
+        },
+        "parquetLens.nl2sql.headers": {
+          "type": "object",
+          "default": {},
+          "description": "Additional headers for the OpenAI-compatible request."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "package": "vsce package --allow-missing-repository",
+    "test": "npm run compile && node --test tests/*.test.js",
+    "vscode:prepublish": "npm run compile"
+  },
+  "dependencies": {
+    "duckdb": "^1.4.4"
+  },
+  "overrides": {
+    "node-gyp": "^12.3.0",
+    "tar": "^7.5.16"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.92.0",
+    "@vscode/vsce": "^3.9.1",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,218 @@
+:root {
+  color-scheme: light dark;
+  --border: var(--vscode-panel-border);
+  --muted: var(--vscode-descriptionForeground);
+  --bg: var(--vscode-editor-background);
+  --fg: var(--vscode-editor-foreground);
+  --input: var(--vscode-input-background);
+  --input-fg: var(--vscode-input-foreground);
+  --accent: var(--vscode-button-background);
+  --accent-fg: var(--vscode-button-foreground);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.shell {
+  display: grid;
+  grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
+  height: 100vh;
+  min-height: 0;
+}
+
+.toolbar {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto 1fr auto auto auto;
+  padding: 8px;
+}
+
+.mode {
+  display: inline-flex;
+  border: 1px solid var(--border);
+}
+
+.mode button {
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  cursor: pointer;
+  min-width: 42px;
+  padding: 5px 10px;
+}
+
+.mode button.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.query {
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--input-fg);
+  min-height: 30px;
+  padding: 5px 8px;
+  width: 100%;
+}
+
+.limit {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.limit input {
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--input-fg);
+  padding: 4px 6px;
+  width: 76px;
+}
+
+.primary {
+  background: var(--accent);
+  border: 0;
+  color: var(--accent-fg);
+  cursor: pointer;
+  min-height: 30px;
+  padding: 5px 12px;
+}
+
+.nl-config,
+.schema {
+  border-bottom: 1px solid var(--border);
+  padding: 6px 8px;
+}
+
+.nl-form {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  padding-top: 8px;
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+}
+
+.field span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.field input,
+.field textarea {
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--input-fg);
+  min-width: 0;
+  padding: 4px 6px;
+  width: 100%;
+}
+
+.field-wide {
+  grid-column: span 2;
+}
+
+details summary {
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.schema-table,
+.data-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.schema-table th,
+.schema-table td,
+.data-table th,
+.data-table td {
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.schema-table th,
+.data-table th {
+  background: var(--vscode-sideBar-background);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.status {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  display: flex;
+  gap: 14px;
+  min-height: 30px;
+  padding: 5px 8px;
+}
+
+.editor-band {
+  border-bottom: 1px solid var(--border);
+  padding: 6px 8px;
+}
+
+.cell-editor {
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--input-fg);
+  display: block;
+  min-height: 28px;
+  resize: vertical;
+  width: 100%;
+}
+
+.grid-wrap {
+  min-height: 0;
+  overflow: auto;
+}
+
+.data-table td {
+  max-width: 360px;
+  min-width: 80px;
+  overflow-wrap: anywhere;
+}
+
+.data-table td.editable {
+  cursor: cell;
+}
+
+.data-table td.selected {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: -2px;
+}
+
+.error {
+  color: var(--vscode-errorForeground);
+}
+
+.hidden {
+  display: none;
+}
