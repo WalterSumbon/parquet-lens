@@ -119,6 +119,11 @@ export class DuckDbParquetService {
     }
   }
 
+  async exportQuery(sql: string, limit: LimitSelection, destinationPath: string): Promise<void> {
+    const resultSql = applyLimit(sql, limit);
+    await this.run(`COPY (${resultSql}) TO ${quoteString(destinationPath)} (FORMAT PARQUET)`);
+  }
+
   async revert(): Promise<void> {
     await this.run(`DROP TABLE IF EXISTS ${editTableName}`);
     this.isEditing = false;

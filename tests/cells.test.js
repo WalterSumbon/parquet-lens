@@ -18,5 +18,13 @@ test("decodes valid utf8 binary values", () => {
 test("reports undecodable binary values explicitly", () => {
   const cell = formatCell(Buffer.from([0xff, 0xfe, 0xfd]));
   assert.equal(cell.display, "[binary data]");
+  assert.equal(cell.kind, "binary-error");
   assert.match(cell.error, /could not be decoded/);
+});
+
+test("formats null values explicitly for display", () => {
+  const cell = formatCell(null);
+  assert.equal(cell.display, "NULL");
+  assert.equal(cell.kind, "null");
+  assert.equal(cell.truncated, false);
 });

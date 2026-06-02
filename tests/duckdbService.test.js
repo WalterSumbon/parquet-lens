@@ -82,6 +82,28 @@ test("keeps result columns when a query returns zero rows", async () => {
   await fs.rm(dir, { recursive: true, force: true });
 });
 
+test("exports the current query result to a standalone parquet file", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "parquet-lens-test-"));
+  const parquetPath = path.join(dir, "fixture.parquet");
+  const exportPath = path.join(dir, "exported.parquet");
+  await createFixture(parquetPath);
+
+  const service = new DuckDbParquetService(parquetPath);
+  await service.initialize();
+  await service.exportQuery("SELECT id, name FROM data ORDER BY id", { mode: "limited", value: 2 }, exportPath);
+  service.close();
+
+  const exported = new DuckDbParquetService(exportPath);
+  await exported.initialize();
+  const result = await exported.query("SELECT * FROM data", { mode: "none", value: 0 });
+  assert.equal(result.rowCount, 2);
+  assert.deepEqual(result.columns.map((column) => column.name), ["id", "name"]);
+  assert.deepEqual(result.rows.map((row) => row.name), ["alpha", "beta"]);
+  exported.close();
+
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
 async function createFixture(parquetPath) {
   const db = new duckdb.Database(":memory:");
   const conn = db.connect();

@@ -10,4 +10,6 @@ Project decisions for Parquet Lens.
 - Release packages are built with `npm run package`; sample Parquet files live under `samples/` and are excluded from VSIX packages.
 - Values sent to the webview must be JSON/structured-clone safe. DuckDB can return BigInt values, including generated row ids, so rows are serialized before `webview.postMessage`.
 - SQL and NL input text are kept separately in the webview. NL2SQL configuration is editable in the webview and saved back to VS Code settings.
+- Query results can be exported as standalone Parquet files through the webview; export uses the active SQL/NL query and current limit setting.
+- Display cells mark NULL and long-value suffixes with muted italic styling; NULL must not render as an empty cell.
 - Do not add a standalone README unless the user explicitly asks for one.

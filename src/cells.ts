@@ -3,6 +3,7 @@ export interface DisplayCell {
   readonly display: string;
   readonly fullLength?: number;
   readonly truncated: boolean;
+  readonly kind: "value" | "null" | "binary-error";
   readonly error?: string;
 }
 
@@ -10,7 +11,7 @@ const defaultMaxLength = 160;
 
 export function formatCell(value: unknown, maxLength = defaultMaxLength): DisplayCell {
   if (value === null || value === undefined) {
-    return { value, display: "", truncated: false };
+    return { value, display: "NULL", truncated: false, kind: "null" };
   }
 
   if (Buffer.isBuffer(value)) {
@@ -20,6 +21,7 @@ export function formatCell(value: unknown, maxLength = defaultMaxLength): Displa
         value,
         display: "[binary data]",
         truncated: false,
+        kind: "binary-error",
         error: "Binary value could not be decoded as text."
       };
     }
@@ -33,6 +35,7 @@ export function formatCell(value: unknown, maxLength = defaultMaxLength): Displa
         value,
         display: "[binary data]",
         truncated: false,
+        kind: "binary-error",
         error: "Binary value could not be decoded as text."
       };
     }
@@ -45,7 +48,7 @@ export function formatCell(value: unknown, maxLength = defaultMaxLength): Displa
 
 function truncateDisplay(value: unknown, text: string, maxLength: number): DisplayCell {
   if (text.length <= maxLength) {
-    return { value, display: text, fullLength: text.length, truncated: false };
+    return { value, display: text, fullLength: text.length, truncated: false, kind: "value" };
   }
 
   const suffix = `... (${text.length} chars)`;
@@ -54,7 +57,8 @@ function truncateDisplay(value: unknown, text: string, maxLength: number): Displ
     value,
     display: `${text.slice(0, visibleLength)}${suffix}`,
     fullLength: text.length,
-    truncated: true
+    truncated: true,
+    kind: "value"
   };
 }
 

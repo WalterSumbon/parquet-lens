@@ -76,11 +76,11 @@ textarea {
 .limit {
   align-items: center;
   display: inline-flex;
-  gap: 6px;
+  gap: 4px;
   white-space: nowrap;
 }
 
-.limit input {
+.limit input[type="number"] {
   background: var(--input);
   border: 1px solid var(--border);
   color: var(--input-fg);
@@ -88,13 +88,26 @@ textarea {
   width: 76px;
 }
 
-.primary {
+.limit-toggle {
+  flex: 0 0 auto;
+  height: 14px;
+  margin: 0;
+  width: 14px;
+}
+
+.primary,
+.secondary {
   background: var(--accent);
   border: 0;
   color: var(--accent-fg);
   cursor: pointer;
   min-height: 30px;
   padding: 5px 12px;
+}
+
+.secondary {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
 }
 
 .nl-config,
@@ -211,6 +224,16 @@ details summary {
 
 .error {
   color: var(--vscode-errorForeground);
+}
+
+.notice {
+  color: var(--vscode-testing-iconPassed);
+}
+
+.cell-suffix,
+.cell-special {
+  color: var(--muted);
+  font-style: italic;
 }
 
 .hidden {

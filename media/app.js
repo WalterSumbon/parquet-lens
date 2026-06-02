@@ -61,27 +61,31 @@
     };
 
     const limit = el("label", "limit");
-    const noLimit = el("input");
-    noLimit.type = "checkbox";
-    noLimit.checked = state.limitMode === "none";
-    noLimit.onchange = () => {
-      state.limitMode = noLimit.checked ? "none" : "limited";
+    const enableLimit = el("input", "limit-toggle");
+    enableLimit.type = "checkbox";
+    enableLimit.title = "Enable row limit. Clear this checkbox to return all rows.";
+    enableLimit.checked = state.limitMode === "limited";
+    enableLimit.onchange = () => {
+      state.limitMode = enableLimit.checked ? "limited" : "none";
       render();
     };
     const limitInput = el("input");
     limitInput.type = "number";
     limitInput.min = "0";
     limitInput.value = String(state.limitValue);
-    limitInput.disabled = state.limitMode === "none";
+    limitInput.disabled = state.limitMode !== "limited";
     limitInput.oninput = () => {
       state.limitValue = Number.parseInt(limitInput.value || "0", 10);
     };
-    limit.append(text("No limit"), noLimit, text("Limit"), limitInput);
+    limit.append(enableLimit, text("Limit"), limitInput);
 
     const run = el("button", "primary", "Run");
     run.onclick = () => runQuery();
+    const exportButton = el("button", "secondary", "Export");
+    exportButton.title = "Save the current query result as a Parquet file.";
+    exportButton.onclick = () => exportResult();
 
-    bar.append(mode, query, limit, run);
+    bar.append(mode, query, limit, run, exportButton);
     return bar;
   }
 
@@ -195,7 +199,8 @@
       const tr = el("tr");
       for (const column of state.columns) {
         const cell = dataRow[column.name] || { display: "" };
-        const td = el("td", state.editable ? "editable" : "", cell.display || "");
+        const td = el("td", state.editable ? "editable" : "");
+        appendCellContent(td, cell);
         if (cell.error) {
           td.title = cell.error;
           td.classList.add("error");
@@ -225,6 +230,17 @@
 
   function runQuery() {
     request("query", {
+      mode: state.mode,
+      text: state.mode === "nl" ? state.nlText : state.sqlText,
+      limit: {
+        mode: state.limitMode,
+        value: state.limitValue
+      }
+    });
+  }
+
+  function exportResult() {
+    request("exportResult", {
       mode: state.mode,
       text: state.mode === "nl" ? state.nlText : state.sqlText,
       limit: {
@@ -283,6 +299,11 @@
       return;
     }
 
+    if (message.command === "exported") {
+      showNotice(`Exported to ${message.path}`);
+      return;
+    }
+
     if (message.command === "error") {
       showError(message.message || "Unknown error");
     }
@@ -295,6 +316,14 @@
       bar.append(error);
     } else {
       app.append(el("div", "error", message));
+    }
+  }
+
+  function showNotice(message) {
+    const bar = document.querySelector(".status");
+    if (bar) {
+      const notice = el("span", "notice", message);
+      bar.append(notice);
     }
   }
 
@@ -315,6 +344,30 @@
       node.textContent = content;
     }
     return node;
+  }
+
+  function appendCellContent(td, cell) {
+    if (!cell) {
+      return;
+    }
+    if (cell.kind === "null") {
+      td.append(el("span", "cell-special", "NULL"));
+      return;
+    }
+    if (!cell.truncated || cell.fullLength === undefined) {
+      td.textContent = cell.display || "";
+      return;
+    }
+
+    const suffix = `... (${cell.fullLength} chars)`;
+    const display = cell.display || "";
+    const suffixIndex = display.endsWith(suffix) ? display.length - suffix.length : -1;
+    if (suffixIndex < 0) {
+      td.textContent = display;
+      return;
+    }
+    td.append(text(display.slice(0, suffixIndex)));
+    td.append(el("span", "cell-suffix", suffix));
   }
 
   function text(content) {

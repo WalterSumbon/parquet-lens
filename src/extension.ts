@@ -29,6 +29,12 @@ type WebviewRequest = WebviewQueryRequest | WebviewEditRequest | {
   readonly command: "updateNl2sqlConfig";
   readonly requestId?: string;
   readonly config: Partial<Nl2SqlConfig>;
+} | {
+  readonly command: "exportResult";
+  readonly requestId: string;
+  readonly mode: "sql" | "nl";
+  readonly text: string;
+  readonly limit: LimitSelection;
 };
 
 class ParquetLensDocument implements vscode.CustomDocument {
@@ -154,6 +160,27 @@ class ParquetLensProvider implements vscode.CustomEditorProvider<ParquetLensDocu
         columnCount: result.columnCount,
         editable: result.editable
       });
+      return;
+    }
+
+    if (message.command === "exportResult") {
+      const sql = message.mode === "nl"
+        ? await this.sqlFromNaturalLanguage(document, message.text)
+        : message.text;
+      const readonlySql = assertReadOnlyQuery(sql);
+      const destination = await vscode.window.showSaveDialog({
+        defaultUri: vscode.Uri.file(path.join(path.dirname(document.uri.fsPath), `${path.basename(document.uri.fsPath, path.extname(document.uri.fsPath))}-result.parquet`)),
+        filters: {
+          "Parquet files": ["parquet"]
+        },
+        saveLabel: "Export Result"
+      });
+      if (!destination) {
+        webview.postMessage({ command: "exportCancelled", requestId: message.requestId });
+        return;
+      }
+      await document.service.exportQuery(readonlySql, message.limit, destination.fsPath);
+      webview.postMessage({ command: "exported", requestId: message.requestId, path: destination.fsPath });
       return;
     }
 
