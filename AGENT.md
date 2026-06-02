@@ -12,4 +12,5 @@ Project decisions for Parquet Lens.
 - SQL and NL input text are kept separately in the webview. NL2SQL configuration is editable in the webview and saved back to VS Code settings.
 - Query results can be exported as standalone Parquet files through the webview; export uses the active SQL/NL query and current limit setting.
 - Display cells mark NULL and long-value suffixes with muted italic styling; NULL must not render as an empty cell.
+- Editable query detection is intentionally broader than `SELECT * FROM data`: simple single-table `SELECT` queries with `WHERE`, `ORDER BY`, and `LIMIT` remain editable by injecting an internal row id. Aggregations, DISTINCT, joins, unions, grouped queries, and expression columns stay read-only.
 - Do not add a standalone README unless the user explicitly asks for one.

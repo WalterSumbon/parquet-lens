@@ -187,6 +187,24 @@ details summary {
   padding: 5px 8px;
 }
 
+.edit-badge {
+  border-radius: 4px;
+  font-weight: 600;
+  padding: 2px 8px;
+}
+
+.editable-badge {
+  background: rgba(56, 118, 81, 0.22);
+  border: 1px solid rgba(90, 150, 111, 0.55);
+  color: #8fd19e;
+}
+
+.readonly-badge {
+  background: rgba(127, 66, 66, 0.22);
+  border: 1px solid rgba(169, 94, 94, 0.55);
+  color: #d38f8f;
+}
+
 .editor-band {
   border-bottom: 1px solid var(--border);
   padding: 6px 8px;

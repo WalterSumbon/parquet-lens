@@ -31,7 +31,8 @@ test("queries schema, applies limit, counts full result, edits, saves, and reloa
   assert.equal(filtered.rows.length, 2);
   assert.equal(filtered.rowCount, 2);
   assert.equal(filtered.columnCount, 2);
-  assert.equal(filtered.editable, false);
+  assert.equal(filtered.editable, true);
+  assert.notEqual(filtered.rows[0].__parquet_lens_row_id, undefined);
 
   const firstRowId = Number(limited.rows[0].__parquet_lens_row_id);
   await service.editCell(firstRowId, "name", "changed");
@@ -44,6 +45,43 @@ test("queries schema, applies limit, counts full result, edits, saves, and reloa
   await verify.initialize();
   const saved = await verify.query("SELECT * FROM data WHERE id = 1", { mode: "none", value: 0 });
   assert.equal(saved.rows[0].name, "changed");
+  verify.close();
+
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
+test("keeps aggregation results read-only", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "parquet-lens-test-"));
+  const parquetPath = path.join(dir, "fixture.parquet");
+  await createFixture(parquetPath);
+
+  const service = new DuckDbParquetService(parquetPath);
+  await service.initialize();
+  const result = await service.query("SELECT count(*) AS total FROM data", { mode: "none", value: 0 });
+  assert.equal(result.editable, false);
+  assert.equal(result.rows[0].__parquet_lens_row_id, undefined);
+  service.close();
+
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
+test("allows editing rows selected by a simple filtered query", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "parquet-lens-test-"));
+  const parquetPath = path.join(dir, "fixture.parquet");
+  await createFixture(parquetPath);
+
+  const service = new DuckDbParquetService(parquetPath);
+  await service.initialize();
+  const filtered = await service.query("SELECT id, name FROM data WHERE id = 2", { mode: "none", value: 0 });
+  assert.equal(filtered.editable, true);
+  await service.editCell(Number(filtered.rows[0].__parquet_lens_row_id), "name", "located");
+  await service.save();
+  service.close();
+
+  const verify = new DuckDbParquetService(parquetPath);
+  await verify.initialize();
+  const saved = await verify.query("SELECT id, name FROM data WHERE id = 2", { mode: "none", value: 0 });
+  assert.equal(saved.rows[0].name, "located");
   verify.close();
 
   await fs.rm(dir, { recursive: true, force: true });

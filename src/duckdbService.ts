@@ -16,6 +16,10 @@ export interface QueryResult {
   readonly editable: boolean;
 }
 
+interface EditableQuery {
+  readonly sql: string;
+}
+
 export interface SchemaField {
   readonly name: string;
   readonly type: string;
@@ -48,8 +52,9 @@ export class DuckDbParquetService {
 
   async query(sql: string, limit: LimitSelection): Promise<QueryResult> {
     const readonlySql = assertReadOnlyQuery(sql);
-    const editable = this.isBasePreviewQuery(readonlySql);
-    const resultSql = editable ? this.editablePreviewSql(limit) : applyLimit(readonlySql, limit);
+    const editableQuery = this.toEditableQuery(readonlySql);
+    const editable = editableQuery !== undefined;
+    const resultSql = editableQuery ? applyLimit(editableQuery.sql, limit) : applyLimit(readonlySql, limit);
     const rows = await this.all(resultSql);
     const columns = rows.length > 0 ? inferColumns(rows) : await this.getColumns(readonlySql);
     const countRows = await this.all(countQuery(readonlySql)) as Array<{ row_count: number | bigint }>;
@@ -156,9 +161,7 @@ export class DuckDbParquetService {
   }
 
   private editablePreviewSql(limit: LimitSelection): string {
-    const source = this.isEditing
-      ? `SELECT * FROM ${editTableName} ORDER BY ${quoteIdentifier(editRowIdColumn)}`
-      : `SELECT row_number() OVER () - 1 AS ${quoteIdentifier(editRowIdColumn)}, * FROM read_parquet(${quoteString(this.parquetPath)}, binary_as_string = true)`;
+    const source = `SELECT * FROM ${this.editableSource()} ORDER BY ${quoteIdentifier(editRowIdColumn)}`;
 
     if (limit.mode === "none") {
       return source;
@@ -167,8 +170,30 @@ export class DuckDbParquetService {
     return `SELECT * FROM (${source}) AS parquet_lens_editable_preview LIMIT ${limit.value}`;
   }
 
-  private isBasePreviewQuery(sql: string): boolean {
-    return /^SELECT\s+\*\s+FROM\s+data(?:\s+ORDER\s+BY\s+.+)?$/iu.test(sql);
+  private toEditableQuery(sql: string): EditableQuery | undefined {
+    const match = sql.match(/^SELECT\s+([\s\S]+?)\s+FROM\s+data\b([\s\S]*)$/iu);
+    if (!match) {
+      return undefined;
+    }
+
+    const selectList = match[1]?.trim();
+    const tail = match[2]?.trim() ?? "";
+    if (!selectList || !isEditableSelectList(selectList) || !isEditableTail(tail)) {
+      return undefined;
+    }
+
+    const prefix = tail.length > 0 ? ` ${tail}` : "";
+    return {
+      sql: `SELECT ${quoteIdentifier(editRowIdColumn)}, ${selectList} FROM ${this.editableSource()}${prefix}`
+    };
+  }
+
+  private editableSource(): string {
+    if (this.isEditing) {
+      return `(SELECT * FROM ${editTableName}) AS data`;
+    }
+
+    return `(SELECT row_number() OVER () - 1 AS ${quoteIdentifier(editRowIdColumn)}, * FROM read_parquet(${quoteString(this.parquetPath)}, binary_as_string = true)) AS data`;
   }
 
   private async getColumnCount(sql: string, fallback: number): Promise<number> {
@@ -229,6 +254,30 @@ function inferColumns(rows: Array<Record<string, unknown>>): QueryColumn[] {
   }
 
   return Object.keys(first).map((name) => ({ name }));
+}
+
+function isEditableSelectList(selectList: string): boolean {
+  if (/\bDISTINCT\b/iu.test(selectList) || /\*/u.test(selectList) && selectList.trim() !== "*") {
+    return false;
+  }
+  if (/\b(COUNT|SUM|AVG|MIN|MAX|MEDIAN|MODE|STRING_AGG|ARRAY_AGG|LIST|FIRST|LAST)\s*\(/iu.test(selectList)) {
+    return false;
+  }
+  if (/[()+*/]/u.test(selectList) && selectList.trim() !== "*") {
+    return false;
+  }
+  if (selectList.trim() === "*") {
+    return true;
+  }
+
+  return selectList.split(",").every((part) => {
+    const column = part.trim();
+    return /^("[^"]+"|[A-Za-z_][A-Za-z0-9_]*)$/u.test(column);
+  });
+}
+
+function isEditableTail(tail: string): boolean {
+  return !/\b(JOIN|UNION|INTERSECT|EXCEPT|GROUP\s+BY|HAVING|PIVOT|UNPIVOT)\b/iu.test(tail);
 }
 
 export { editRowIdColumn };

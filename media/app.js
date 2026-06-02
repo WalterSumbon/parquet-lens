@@ -170,7 +170,7 @@
     bar.append(
       el("span", "", `Rows: ${state.rowCount}`),
       el("span", "", `Columns: ${state.columnCount}`),
-      el("span", "", state.editable ? "Editable result" : "Read-only result")
+      el("span", state.editable ? "edit-badge editable-badge" : "edit-badge readonly-badge", state.editable ? "Editable result" : "Read-only result")
     );
     return bar;
   }
