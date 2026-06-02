@@ -3,7 +3,7 @@ export interface DisplayCell {
   readonly display: string;
   readonly fullLength?: number;
   readonly truncated: boolean;
-  readonly kind: "value" | "null" | "binary-error";
+  readonly kind: "value" | "null" | "empty-string" | "blank-string" | "binary-error";
   readonly error?: string;
 }
 
@@ -43,6 +43,12 @@ export function formatCell(value: unknown, maxLength = defaultMaxLength): Displa
   }
 
   const text = typeof value === "string" ? value : String(value);
+  if (text.length === 0) {
+    return { value, display: "EMPTY STRING", fullLength: 0, truncated: false, kind: "empty-string" };
+  }
+  if (/^\s+$/u.test(text)) {
+    return { value, display: `WHITESPACE (${text.length} chars)`, fullLength: text.length, truncated: false, kind: "blank-string" };
+  }
   return truncateDisplay(value, text, maxLength);
 }
 

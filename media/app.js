@@ -200,6 +200,9 @@
       for (const column of state.columns) {
         const cell = dataRow[column.name] || { display: "" };
         const td = el("td", state.editable ? "editable" : "");
+        if (isSpecialCell(cell)) {
+          td.classList.add("cell-special");
+        }
         appendCellContent(td, cell);
         if (cell.error) {
           td.title = cell.error;
@@ -350,8 +353,8 @@
     if (!cell) {
       return;
     }
-    if (cell.kind === "null") {
-      td.append(el("span", "cell-special", "NULL"));
+    if (isSpecialCell(cell)) {
+      td.textContent = cell.display || "";
       return;
     }
     if (!cell.truncated || cell.fullLength === undefined) {
@@ -368,6 +371,10 @@
     }
     td.append(text(display.slice(0, suffixIndex)));
     td.append(el("span", "cell-suffix", suffix));
+  }
+
+  function isSpecialCell(cell) {
+    return cell && (cell.kind === "null" || cell.kind === "empty-string" || cell.kind === "blank-string");
   }
 
   function text(content) {

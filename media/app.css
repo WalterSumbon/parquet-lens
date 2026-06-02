@@ -249,7 +249,7 @@ details summary {
 }
 
 .cell-suffix,
-.cell-special {
+.data-table td.cell-special {
   color: var(--muted);
   font-style: italic;
 }

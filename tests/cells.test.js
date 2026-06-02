@@ -28,3 +28,17 @@ test("formats null values explicitly for display", () => {
   assert.equal(cell.kind, "null");
   assert.equal(cell.truncated, false);
 });
+
+test("formats empty strings explicitly for display", () => {
+  const cell = formatCell("");
+  assert.equal(cell.display, "EMPTY STRING");
+  assert.equal(cell.kind, "empty-string");
+  assert.equal(cell.fullLength, 0);
+});
+
+test("formats whitespace-only strings explicitly for display", () => {
+  const cell = formatCell("  \n\t");
+  assert.equal(cell.display, "WHITESPACE (4 chars)");
+  assert.equal(cell.kind, "blank-string");
+  assert.equal(cell.fullLength, 4);
+});
