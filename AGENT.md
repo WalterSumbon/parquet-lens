@@ -8,6 +8,7 @@ Project decisions for Parquet Lens.
 - Editing is not in-place Parquet mutation. The first edit materializes the file into a temporary DuckDB table, edits update that table, and save atomically rewrites the Parquet file.
 - Tests live under `tests/`.
 - Release packages are built with `npm run package`; sample Parquet files live under `samples/` and are excluded from VSIX packages.
+- VS Code Marketplace manual publishing and updates can be done at https://marketplace.visualstudio.com/manage/publishers/xiahan.
 - Values sent to the webview must be JSON/structured-clone safe. DuckDB can return BigInt values, including generated row ids, so rows are serialized before `webview.postMessage`.
 - SQL and NL input text are kept separately in the webview. NL2SQL configuration is editable in the webview and saved back to VS Code settings.
 - Query results can be exported as standalone Parquet files through the webview; export uses the active SQL/NL query and current limit setting.
