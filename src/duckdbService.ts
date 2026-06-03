@@ -26,8 +26,10 @@ export interface SchemaField {
   readonly nullable: string | null;
 }
 
-const editRowIdColumn = "__parquet_lens_row_id";
+const editRowIdColumn = "__parquet_lens_internal_row_id__9f6f0f79";
 const editTableName = "parquet_lens_edit";
+const legacyInternalColumnPattern = /^__parquet_lens_row_id(?:_\d+)?$/u;
+const currentInternalColumnPattern = /^__parquet_lens_internal_row_id__9f6f0f79(?:_\d+)?$/u;
 
 export class DuckDbParquetService {
   private readonly db: duckdb.Database;
@@ -62,8 +64,8 @@ export class DuckDbParquetService {
     const columnCount = await this.getColumnCount(readonlySql, columns.length);
 
     return {
-      columns: columns.filter((column) => column.name !== editRowIdColumn),
-      rows,
+      columns: columns.filter((column) => !isInternalColumn(column.name)),
+      rows: rows.map((row) => filterInternalColumns(row, { keepRowId: true })),
       rowCount,
       columnCount,
       editable
@@ -125,7 +127,10 @@ export class DuckDbParquetService {
   }
 
   async exportQuery(sql: string, limit: LimitSelection, destinationPath: string): Promise<void> {
-    const resultSql = applyLimit(sql, limit);
+    const readonlySql = assertReadOnlyQuery(sql);
+    const editableQuery = this.toEditableQuery(readonlySql);
+    const baseSql = editableQuery ? stripInternalColumnsQuery(editableQuery.sql) : readonlySql;
+    const resultSql = applyLimit(baseSql, limit);
     await this.run(`COPY (${resultSql}) TO ${quoteString(destinationPath)} (FORMAT PARQUET)`);
   }
 
@@ -245,6 +250,28 @@ export function quoteIdentifier(identifier: string): string {
 
 export function quoteString(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
+}
+
+export function isInternalColumn(columnName: string): boolean {
+  return currentInternalColumnPattern.test(columnName) || legacyInternalColumnPattern.test(columnName);
+}
+
+function filterInternalColumns(row: Record<string, unknown>, options: { keepRowId: boolean }): Record<string, unknown> {
+  const filtered: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (key === editRowIdColumn && options.keepRowId) {
+      filtered[key] = value;
+      continue;
+    }
+    if (!isInternalColumn(key)) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+}
+
+function stripInternalColumnsQuery(sql: string): string {
+  return `SELECT * EXCLUDE (${quoteIdentifier(editRowIdColumn)}) FROM (${sql}) AS parquet_lens_export`;
 }
 
 function inferColumns(rows: Array<Record<string, unknown>>): QueryColumn[] {

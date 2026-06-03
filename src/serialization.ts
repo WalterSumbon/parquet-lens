@@ -1,5 +1,5 @@
 import { formatCell, DisplayCell } from "./cells";
-import { editRowIdColumn, QueryColumn, SchemaField } from "./duckdbService";
+import { editRowIdColumn, isInternalColumn, QueryColumn, SchemaField } from "./duckdbService";
 
 export type WebviewCellValue = string | number | boolean | null;
 
@@ -12,6 +12,9 @@ export function serializeRowForWebview(row: Record<string, unknown>): Record<str
   for (const [key, value] of Object.entries(row)) {
     if (key === editRowIdColumn) {
       serialized[key] = serializeScalar(value);
+      continue;
+    }
+    if (isInternalColumn(key)) {
       continue;
     }
 
