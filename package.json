@@ -5,6 +5,23 @@
   "version": "0.1.0",
   "publisher": "local",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WalterSumbon/parquet-lens.git"
+  },
+  "bugs": {
+    "url": "https://github.com/WalterSumbon/parquet-lens/issues"
+  },
+  "homepage": "https://github.com/WalterSumbon/parquet-lens#readme",
+  "keywords": [
+    "parquet",
+    "duckdb",
+    "sql",
+    "vscode-extension",
+    "data-science",
+    "nl2sql",
+    "openai"
+  ],
   "engines": {
     "vscode": "^1.92.0"
   },
