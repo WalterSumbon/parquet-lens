@@ -14,7 +14,12 @@
     editable: false,
     selected: null,
     pending: new Map(),
-    nl2sql: {}
+    nl2sql: {},
+    editRowIdColumn: null,
+    currentQueryRequestId: null,
+    isRunning: false,
+    rowNumberCollapsed: false,
+    rowNumberBase: 1
   };
 
   const app = document.getElementById("app");
@@ -59,6 +64,12 @@
         state.sqlText = query.value;
       }
     };
+    query.onkeydown = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        runQuery();
+      }
+    };
 
     const limit = el("label", "limit");
     const enableLimit = el("input", "limit-toggle");
@@ -79,9 +90,12 @@
     };
     limit.append(enableLimit, text("Limit"), limitInput);
 
-    const run = el("button", "primary", "Run");
-    run.onclick = () => runQuery();
-    const exportButton = el("button", "secondary", "Export");
+    const run = el("button", state.isRunning ? "primary running" : "primary");
+    run.innerHTML = state.isRunning ? icon("stop") + "Running" : icon("play") + "Run";
+    run.title = state.isRunning ? "Click to stop" : "Run query";
+    run.onclick = () => state.isRunning ? stopRunning() : runQuery();
+    const exportButton = el("button", "secondary");
+    exportButton.innerHTML = icon("export") + "Export";
     exportButton.title = "Save the current query result as a Parquet file.";
     exportButton.onclick = () => exportResult();
 
@@ -194,9 +208,15 @@
   function grid() {
     const wrap = el("div", "grid-wrap");
     const table = el("table", "data-table");
-    table.append(row(state.columns.map((column) => column.name), "th"));
+    const header = el("tr");
+    header.append(rowNumberHeader());
+    for (const column of state.columns) {
+      header.append(el("th", "", column.name));
+    }
+    table.append(header);
     state.rows.forEach((dataRow, rowIndex) => {
       const tr = el("tr");
+      tr.append(rowNumberCell(rowIndex));
       for (const column of state.columns) {
         const cell = dataRow[column.name] || { display: "" };
         const td = el("td", state.editable ? "editable" : "");
@@ -214,7 +234,7 @@
           state.selected = {
             rowIndex,
             columnName: column.name,
-            rowId: dataRow.__parquet_lens_row_id,
+            rowId: state.editRowIdColumn ? dataRow[state.editRowIdColumn] : undefined,
             rawValue: cell.value,
             display: cell.display
           };
@@ -231,8 +251,36 @@
     return wrap;
   }
 
+  function rowNumberHeader() {
+    const th = el("th", state.rowNumberCollapsed ? "row-number row-number-collapsed" : "row-number");
+    th.title = state.rowNumberCollapsed
+      ? "Click to expand row numbers. Right-click to switch 0-based or 1-based numbering."
+      : "Click to collapse row numbers. Right-click to switch 0-based or 1-based numbering.";
+    th.textContent = state.rowNumberCollapsed ? "" : "#";
+    th.onclick = () => {
+      state.rowNumberCollapsed = !state.rowNumberCollapsed;
+      render();
+    };
+    th.oncontextmenu = (event) => {
+      event.preventDefault();
+      state.rowNumberBase = state.rowNumberBase === 0 ? 1 : 0;
+      render();
+    };
+    return th;
+  }
+
+  function rowNumberCell(rowIndex) {
+    const td = el("td", state.rowNumberCollapsed ? "row-number row-number-collapsed" : "row-number");
+    td.title = state.rowNumberCollapsed ? "Click the header to expand row numbers" : `Displayed row ${rowIndex + state.rowNumberBase}`;
+    td.textContent = state.rowNumberCollapsed ? "" : String(rowIndex + state.rowNumberBase);
+    return td;
+  }
+
   function runQuery() {
-    request("query", {
+    if (state.isRunning) {
+      return;
+    }
+    const requestId = request("query", {
       mode: state.mode,
       text: state.mode === "nl" ? state.nlText : state.sqlText,
       limit: {
@@ -240,6 +288,15 @@
         value: state.limitValue
       }
     });
+    state.currentQueryRequestId = requestId;
+    state.isRunning = true;
+    render();
+  }
+
+  function stopRunning() {
+    state.currentQueryRequestId = null;
+    state.isRunning = false;
+    render();
   }
 
   function exportResult() {
@@ -269,6 +326,9 @@
   window.addEventListener("message", (event) => {
     const message = event.data;
     if (message.command === "initialState" || message.command === "queryResult") {
+      if (message.command === "queryResult" && message.requestId !== state.currentQueryRequestId) {
+        return;
+      }
       if (message.sql) {
         state.sqlText = message.sql;
       } else if (message.defaultSql) {
@@ -282,6 +342,9 @@
       state.editable = Boolean(message.editable);
       state.selected = null;
       state.nl2sql = message.nl2sql || state.nl2sql;
+      state.editRowIdColumn = message.editRowIdColumn || state.editRowIdColumn;
+      state.currentQueryRequestId = null;
+      state.isRunning = false;
       render();
       return;
     }
@@ -308,6 +371,11 @@
     }
 
     if (message.command === "error") {
+      if (message.requestId === state.currentQueryRequestId) {
+        state.currentQueryRequestId = null;
+        state.isRunning = false;
+        render();
+      }
       showError(message.message || "Unknown error");
     }
   });
@@ -379,6 +447,16 @@
 
   function text(content) {
     return document.createTextNode(content);
+  }
+
+  function icon(name) {
+    if (name === "play") {
+      return '<span class="button-icon" aria-hidden="true">▶</span>';
+    }
+    if (name === "stop") {
+      return '<span class="button-icon" aria-hidden="true">■</span>';
+    }
+    return '<span class="button-icon" aria-hidden="true">↗</span>';
   }
 
   function stringifyValue(value) {

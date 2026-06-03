@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { DuckDbParquetService } from "./duckdbService";
+import { DuckDbParquetService, editRowIdColumn } from "./duckdbService";
 import { requestNl2Sql, Nl2SqlConfig } from "./nl2sql";
 import { columnsFromSchema, serializeRowForWebview } from "./serialization";
 import { assertReadOnlyQuery, LimitSelection } from "./sql";
@@ -158,7 +158,8 @@ class ParquetLensProvider implements vscode.CustomEditorProvider<ParquetLensDocu
         rows: result.rows.map((row) => serializeRowForWebview(row)),
         rowCount: result.rowCount,
         columnCount: result.columnCount,
-        editable: result.editable
+        editable: result.editable,
+        editRowIdColumn
       });
       return;
     }
@@ -222,6 +223,7 @@ class ParquetLensProvider implements vscode.CustomEditorProvider<ParquetLensDocu
       rowCount: result.rowCount,
       columnCount: result.columnCount,
       editable: result.editable,
+      editRowIdColumn,
       nl2sql: this.nl2SqlConfig()
     });
   }

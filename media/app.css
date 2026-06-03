@@ -106,8 +106,22 @@ textarea {
 }
 
 .secondary {
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  border: 1px solid var(--vscode-button-border, transparent);
+  color: var(--vscode-button-secondaryForeground, var(--fg));
+}
+
+.running {
+  background: var(--vscode-errorForeground, #b94a48);
+  color: var(--vscode-button-foreground);
+}
+
+.button-icon {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1;
+  margin-right: 6px;
+  vertical-align: 1px;
 }
 
 .nl-config,
@@ -175,6 +189,25 @@ details summary {
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+.data-table .row-number {
+  background: var(--vscode-sideBar-background);
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 600;
+  max-width: none;
+  min-width: 44px;
+  text-align: right;
+  user-select: none;
+  width: 44px;
+}
+
+.data-table .row-number-collapsed {
+  min-width: 8px;
+  padding-left: 0;
+  padding-right: 0;
+  width: 8px;
 }
 
 .status {

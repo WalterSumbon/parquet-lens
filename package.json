@@ -2,7 +2,7 @@
   "name": "parquet-lens",
   "displayName": "Parquet Lens",
   "description": "View, query, and edit Parquet files with SQL and OpenAI-compatible NL2SQL.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "XiaHan",
   "license": "MIT",
   "repository": {
