@@ -94,12 +94,16 @@
     run.innerHTML = state.isRunning ? icon("stop") + "Running" : icon("play") + "Run";
     run.title = state.isRunning ? "Click to stop" : "Run query";
     run.onclick = () => state.isRunning ? stopRunning() : runQuery();
+    const resetButton = el("button", "secondary");
+    resetButton.innerHTML = icon("reset") + "Reset";
+    resetButton.title = "Reset query, limit, selection, and view state";
+    resetButton.onclick = () => resetView();
     const exportButton = el("button", "secondary");
     exportButton.innerHTML = icon("export") + "Export";
     exportButton.title = "Save the current query result as a Parquet file.";
     exportButton.onclick = () => exportResult();
 
-    bar.append(mode, query, limit, run, exportButton);
+    bar.append(mode, query, limit, run, resetButton, exportButton);
     return bar;
   }
 
@@ -299,6 +303,21 @@
     render();
   }
 
+  function resetView() {
+    state.currentQueryRequestId = null;
+    state.isRunning = false;
+    state.mode = "sql";
+    state.sqlText = "SELECT * FROM data";
+    state.nlText = "";
+    state.limitMode = "limited";
+    state.limitValue = 100;
+    state.selected = null;
+    state.rowNumberCollapsed = false;
+    state.rowNumberBase = 1;
+    render();
+    runQuery();
+  }
+
   function exportResult() {
     request("exportResult", {
       mode: state.mode,
@@ -455,6 +474,9 @@
     }
     if (name === "stop") {
       return '<span class="button-icon" aria-hidden="true">■</span>';
+    }
+    if (name === "reset") {
+      return '<span class="button-icon" aria-hidden="true">↺</span>';
     }
     return '<span class="button-icon" aria-hidden="true">↗</span>';
   }

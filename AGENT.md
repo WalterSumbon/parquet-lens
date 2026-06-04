@@ -17,4 +17,5 @@ Project decisions for Parquet Lens.
 - Editable query detection is intentionally broader than `SELECT * FROM data`: simple single-table `SELECT` queries with `WHERE`, `ORDER BY`, and `LIMIT` remain editable by injecting an internal row id. Aggregations, DISTINCT, joins, unions, grouped queries, and expression columns stay read-only.
 - Internal row id columns must never be shown to users or included in exported query results. Filter both current and legacy internal column name patterns, including DuckDB-renamed suffixes such as `_1`.
 - The grid has a UI-only row number column with a table-header style. Left-click its header toggles collapsed/expanded state; right-click toggles 0-based versus 1-based display. Query input supports Cmd/Ctrl+Enter to run. Running state is visual only and cancels applying the pending result if stopped.
+- Reset View restores SQL mode, `SELECT * FROM data`, enabled limit 100, expanded 1-based row numbers, and cleared selection, then reruns the default preview. It must not reset NL2SQL configuration or discard unsaved data edits.
 - Do not add a standalone README unless the user explicitly asks for one.

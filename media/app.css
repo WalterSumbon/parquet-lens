@@ -41,7 +41,7 @@ textarea {
   border-bottom: 1px solid var(--border);
   display: grid;
   gap: 8px;
-  grid-template-columns: auto 1fr auto auto auto;
+  grid-template-columns: auto 1fr auto auto auto auto;
   padding: 8px;
 }
 
