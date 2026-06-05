@@ -19,7 +19,9 @@
     currentQueryRequestId: null,
     isRunning: false,
     rowNumberCollapsed: false,
-    rowNumberBase: 1
+    rowNumberBase: 1,
+    cellEditorHeight: null,
+    focusCellEditor: false
   };
 
   const app = document.getElementById("app");
@@ -198,6 +200,15 @@
     const editor = el("textarea", "cell-editor");
     editor.rows = 1;
     editor.placeholder = "Select a cell to preview or edit its full value";
+    if (state.cellEditorHeight !== null) {
+      editor.style.height = `${state.cellEditorHeight}px`;
+    }
+    editor.oninput = () => {
+      state.cellEditorHeight = editor.getBoundingClientRect().height;
+    };
+    editor.onmouseup = () => {
+      state.cellEditorHeight = editor.getBoundingClientRect().height;
+    };
     if (state.selected) {
       editor.value = stringifyValue(state.selected.rawValue);
       editor.disabled = !state.editable;
@@ -206,6 +217,13 @@
       editor.disabled = true;
     }
     wrap.append(editor);
+    if (state.focusCellEditor) {
+      window.setTimeout(() => {
+        editor.focus();
+        editor.select();
+        state.focusCellEditor = false;
+      }, 0);
+    }
     return wrap;
   }
 
@@ -235,14 +253,10 @@
           td.title = `${cell.fullLength} chars`;
         }
         td.onclick = () => {
-          state.selected = {
-            rowIndex,
-            columnName: column.name,
-            rowId: state.editRowIdColumn ? dataRow[state.editRowIdColumn] : undefined,
-            rawValue: cell.value,
-            display: cell.display
-          };
-          render();
+          selectCell(rowIndex, column.name, dataRow, cell, false);
+        };
+        td.ondblclick = () => {
+          selectCell(rowIndex, column.name, dataRow, cell, true);
         };
         if (state.selected && state.selected.rowIndex === rowIndex && state.selected.columnName === column.name) {
           td.classList.add("selected");
@@ -253,6 +267,18 @@
     });
     wrap.append(table);
     return wrap;
+  }
+
+  function selectCell(rowIndex, columnName, dataRow, cell, focusEditor) {
+    state.selected = {
+      rowIndex,
+      columnName,
+      rowId: state.editRowIdColumn ? dataRow[state.editRowIdColumn] : undefined,
+      rawValue: cell.value,
+      display: cell.display
+    };
+    state.focusCellEditor = Boolean(focusEditor);
+    render();
   }
 
   function rowNumberHeader() {
@@ -314,6 +340,7 @@
     state.selected = null;
     state.rowNumberCollapsed = false;
     state.rowNumberBase = 1;
+    state.focusCellEditor = false;
     render();
     runQuery();
   }
@@ -398,6 +425,53 @@
       showError(message.message || "Unknown error");
     }
   });
+
+  window.addEventListener("keydown", (event) => {
+    if (!(event.metaKey || event.ctrlKey) || !state.selected) {
+      return;
+    }
+    const active = document.activeElement;
+    const activeTag = active?.tagName?.toLowerCase();
+    if (activeTag === "textarea" || activeTag === "input") {
+      return;
+    }
+
+    if (event.key.toLowerCase() === "c") {
+      event.preventDefault();
+      copySelectedCell();
+    }
+
+    if (event.key.toLowerCase() === "v") {
+      event.preventDefault();
+      pasteIntoSelectedCell();
+    }
+  });
+
+  async function copySelectedCell() {
+    try {
+      const value = stringifyValue(state.selected.rawValue);
+      await navigator.clipboard.writeText(value);
+      showNotice("Copied cell");
+    } catch (error) {
+      showError(`Copy failed: ${error.message || error}`);
+    }
+  }
+
+  async function pasteIntoSelectedCell() {
+    if (!state.editable) {
+      showError("The current result is read-only.");
+      return;
+    }
+    try {
+      const value = await navigator.clipboard.readText();
+      applyCellEdit(value);
+      state.selected.rawValue = value;
+      state.focusCellEditor = false;
+      render();
+    } catch (error) {
+      showError(`Paste failed: ${error.message || error}`);
+    }
+  }
 
   function showError(message) {
     const bar = document.querySelector(".status");

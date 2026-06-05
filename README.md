@@ -20,6 +20,8 @@ It is designed for large local Parquet files, SQL-driven inspection, and practic
 - Run queries quickly with `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows/Linux.
 - Show clear running feedback on query execution, with a stop action that ignores a pending result.
 - Reset query and view state back to the default preview without discarding unsaved edits.
+- Copy and paste the selected cell with `Cmd+C`/`Cmd+V` on macOS or `Ctrl+C`/`Ctrl+V` on Windows/Linux.
+- Double-click a cell to focus the full-value editor for immediate editing.
 - Generate SQL from natural language with OpenAI-compatible `/chat/completions` APIs.
 
 ## Install
@@ -58,6 +60,7 @@ code --install-extension parquet-lens-0.1.0.vsix --force
 8. Use `Cmd+Enter` or `Ctrl+Enter` in the SQL/NL input to run the query.
 9. Left-click the row number header to collapse or expand row numbers; right-click it to switch between 0-based and 1-based numbering.
 10. Use Reset to return to the default SQL preview, default limit, row numbering, and cleared selection. Reset does not discard unsaved data edits.
+11. Select a cell and use `Cmd+C`/`Ctrl+C` or `Cmd+V`/`Ctrl+V` to copy or paste its full value. Double-click a cell to start editing in the full-value editor.
 
 Editable queries include simple single-table `SELECT` queries against `data`, including `WHERE`, `ORDER BY`, and `LIMIT`. Aggregations, `DISTINCT`, joins, unions, grouped queries, and expression columns are read-only to avoid unsafe writes.
 
