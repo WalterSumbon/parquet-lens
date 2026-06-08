@@ -169,6 +169,46 @@ test("exports the current query result to a standalone parquet file", async () =
   await fs.rm(dir, { recursive: true, force: true });
 });
 
+test("inserts and deletes rows through the edit table", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "parquet-lens-test-"));
+  const parquetPath = path.join(dir, "fixture.parquet");
+  await createFixture(parquetPath);
+
+  const service = new DuckDbParquetService(parquetPath);
+  await service.initialize();
+  const initial = await service.query("SELECT * FROM data ORDER BY id", { mode: "none", value: 0 });
+  await service.insertRow(Number(initial.rows[0][editRowIdColumn]), "below");
+  const withInsert = await service.query("SELECT * FROM data", { mode: "none", value: 0 });
+  assert.equal(withInsert.rowCount, 4);
+  const inserted = withInsert.rows.find((row) => row.id === null);
+  assert.notEqual(inserted, undefined);
+  await service.deleteRows([Number(inserted[editRowIdColumn])]);
+  const afterDelete = await service.query("SELECT * FROM data", { mode: "none", value: 0 });
+  assert.equal(afterDelete.rowCount, 3);
+  service.close();
+
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
+test("inserts and deletes columns through the edit table", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "parquet-lens-test-"));
+  const parquetPath = path.join(dir, "fixture.parquet");
+  await createFixture(parquetPath);
+
+  const service = new DuckDbParquetService(parquetPath);
+  await service.initialize();
+  await service.insertColumn("name", "right", "new_column");
+  const withColumn = await service.query("SELECT * FROM data", { mode: "none", value: 0 });
+  assert.deepEqual(withColumn.columns.map((column) => column.name), ["id", "name", "new_column", "note"]);
+  assert.equal(withColumn.rows[0].new_column, null);
+  await service.deleteColumns(["new_column"]);
+  const afterDelete = await service.query("SELECT * FROM data", { mode: "none", value: 0 });
+  assert.deepEqual(afterDelete.columns.map((column) => column.name), ["id", "name", "note"]);
+  service.close();
+
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
 async function createFixture(parquetPath) {
   const db = new duckdb.Database(":memory:");
   const conn = db.connect();

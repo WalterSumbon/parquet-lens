@@ -20,6 +20,7 @@ body {
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
   margin: 0;
+  user-select: none;
 }
 
 button,
@@ -70,6 +71,7 @@ textarea {
   color: var(--input-fg);
   min-height: 30px;
   padding: 5px 8px;
+  user-select: text;
   width: 100%;
 }
 
@@ -203,6 +205,17 @@ details summary {
   width: 44px;
 }
 
+.data-table th.column-selected,
+.data-table .row-selected,
+.data-table td.range-selected {
+  background: color-mix(in srgb, var(--vscode-list-activeSelectionBackground, #094771) 35%, var(--vscode-sideBar-background));
+}
+
+.data-table td.range-selected {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
 .data-table .row-number-collapsed {
   min-width: 8px;
   padding-left: 0;
@@ -250,12 +263,14 @@ details summary {
   display: block;
   min-height: 28px;
   resize: vertical;
+  user-select: text;
   width: 100%;
 }
 
 .grid-wrap {
   min-height: 0;
   overflow: auto;
+  position: relative;
 }
 
 .data-table td {
@@ -289,4 +304,29 @@ details summary {
 
 .hidden {
   display: none;
+}
+
+.context-menu {
+  background: var(--vscode-menu-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-menu-border, var(--border));
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  display: grid;
+  min-width: 180px;
+  padding: 4px;
+  position: fixed;
+  z-index: 20;
+}
+
+.context-menu button {
+  background: transparent;
+  border: 0;
+  color: var(--vscode-menu-foreground, var(--fg));
+  cursor: pointer;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.context-menu button:hover {
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-menu-selectionForeground, var(--fg));
 }

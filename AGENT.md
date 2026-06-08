@@ -19,4 +19,7 @@ Project decisions for Parquet Lens.
 - The grid has a UI-only row number column with a table-header style. Left-click its header toggles collapsed/expanded state; right-click toggles 0-based versus 1-based display. Query input supports Cmd/Ctrl+Enter to run. Running state is visual only and cancels applying the pending result if stopped.
 - Reset View restores SQL mode, `SELECT * FROM data`, enabled limit 100, expanded 1-based row numbers, and cleared selection, then reruns the default preview. It must not reset NL2SQL configuration or discard unsaved data edits.
 - Selected cells support Cmd/Ctrl+C and Cmd/Ctrl+V for full-value copy/paste when focus is not already inside an input. Double-clicking a cell focuses the full-value editor. The full-value editor height should persist across cell selection changes.
+- Selecting cells in large result grids must preserve the current grid scroll position.
+- Row and column structural edits are UI-driven: drag-select row numbers or column headers, then use the context menu to delete or insert rows/columns. SQL/NL preview execution remains read-only and is not used for bulk editing.
+- When NL2SQL generates SQL and that generated SQL fails validation or execution, the SQL input must still switch to SQL mode and show the generated SQL.
 - Do not add a standalone README unless the user explicitly asks for one.

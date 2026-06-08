@@ -35,6 +35,25 @@ type WebviewRequest = WebviewQueryRequest | WebviewEditRequest | {
   readonly mode: "sql" | "nl";
   readonly text: string;
   readonly limit: LimitSelection;
+} | {
+  readonly command: "deleteRows";
+  readonly requestId: string;
+  readonly rowIds: number[];
+} | {
+  readonly command: "insertRow";
+  readonly requestId: string;
+  readonly anchorRowId: number | null;
+  readonly position: "above" | "below" | "end";
+} | {
+  readonly command: "deleteColumns";
+  readonly requestId: string;
+  readonly columnNames: string[];
+} | {
+  readonly command: "insertColumn";
+  readonly requestId: string;
+  readonly anchorColumnName: string | null;
+  readonly position: "left" | "right" | "end";
+  readonly columnName: string;
 };
 
 class ParquetLensDocument implements vscode.CustomDocument {
@@ -102,9 +121,11 @@ class ParquetLensProvider implements vscode.CustomEditorProvider<ParquetLensDocu
       try {
         await this.handleMessage(document, webviewPanel.webview, message);
       } catch (error) {
+        const generatedSql = error instanceof QueryExecutionError ? error.sql : undefined;
         webviewPanel.webview.postMessage({
           command: "error",
           requestId: "requestId" in message ? message.requestId : undefined,
+          sql: generatedSql,
           message: error instanceof Error ? error.message : String(error)
         });
       }
@@ -148,19 +169,26 @@ class ParquetLensProvider implements vscode.CustomEditorProvider<ParquetLensDocu
       const sql = message.mode === "nl"
         ? await this.sqlFromNaturalLanguage(document, message.text)
         : message.text;
-      const readonlySql = assertReadOnlyQuery(sql);
-      const result = await document.service.query(readonlySql, message.limit);
-      webview.postMessage({
-        command: "queryResult",
-        requestId: message.requestId,
-        sql: readonlySql,
-        columns: result.columns.length > 0 ? result.columns : columnsFromSchema(await document.service.schema()),
-        rows: result.rows.map((row) => serializeRowForWebview(row)),
-        rowCount: result.rowCount,
-        columnCount: result.columnCount,
-        editable: result.editable,
-        editRowIdColumn
-      });
+      try {
+        const readonlySql = assertReadOnlyQuery(sql);
+        const result = await this.runQueryWithSqlError(readonlySql, message.limit, document);
+        webview.postMessage({
+          command: "queryResult",
+          requestId: message.requestId,
+          sql: readonlySql,
+          columns: result.columns.length > 0 ? result.columns : columnsFromSchema(await document.service.schema()),
+          rows: result.rows.map((row) => serializeRowForWebview(row)),
+          rowCount: result.rowCount,
+          columnCount: result.columnCount,
+          editable: result.editable,
+          editRowIdColumn
+        });
+      } catch (error) {
+        if (error instanceof QueryExecutionError) {
+          throw error;
+        }
+        throw new QueryExecutionError(sql, error instanceof Error ? error.message : String(error));
+      }
       return;
     }
 
@@ -201,6 +229,30 @@ class ParquetLensProvider implements vscode.CustomEditorProvider<ParquetLensDocu
       return;
     }
 
+    if (message.command === "deleteRows") {
+      await this.applyStructuralEdit(document, "Delete rows", () => document.service.deleteRows(message.rowIds));
+      await this.postDefaultRefresh(document, webview, message.requestId);
+      return;
+    }
+
+    if (message.command === "insertRow") {
+      await this.applyStructuralEdit(document, "Insert row", () => document.service.insertRow(message.anchorRowId, message.position));
+      await this.postDefaultRefresh(document, webview, message.requestId);
+      return;
+    }
+
+    if (message.command === "deleteColumns") {
+      await this.applyStructuralEdit(document, "Delete columns", () => document.service.deleteColumns(message.columnNames));
+      await this.postDefaultRefresh(document, webview, message.requestId);
+      return;
+    }
+
+    if (message.command === "insertColumn") {
+      await this.applyStructuralEdit(document, "Insert column", () => document.service.insertColumn(message.anchorColumnName, message.position, message.columnName));
+      await this.postDefaultRefresh(document, webview, message.requestId);
+      return;
+    }
+
     if (message.command === "updateNl2sqlConfig") {
       await this.updateNl2SqlConfig(message.config);
       webview.postMessage({
@@ -228,10 +280,51 @@ class ParquetLensProvider implements vscode.CustomEditorProvider<ParquetLensDocu
     });
   }
 
+  private async postDefaultRefresh(document: ParquetLensDocument, webview: vscode.Webview, requestId: string): Promise<void> {
+    const schema = await document.service.schema();
+    const result = await document.service.query("SELECT * FROM data", { mode: "limited", value: 100 });
+    webview.postMessage({
+      command: "structuralEditApplied",
+      requestId,
+      sql: "SELECT * FROM data",
+      schema,
+      columns: result.columns.length > 0 ? result.columns : columnsFromSchema(schema),
+      rows: result.rows.map((row) => serializeRowForWebview(row)),
+      rowCount: result.rowCount,
+      columnCount: result.columnCount,
+      editable: result.editable,
+      editRowIdColumn
+    });
+  }
+
+  private async applyStructuralEdit(document: ParquetLensDocument, label: string, operation: () => Promise<void>): Promise<void> {
+    const before = await document.service.createEditSnapshot();
+    await operation();
+    const after = await document.service.createEditSnapshot();
+    this.changeEmitter.fire(new ParquetLensEdit(
+      document,
+      label,
+      async () => {
+        await document.service.restoreEditSnapshot(before);
+      },
+      async () => {
+        await document.service.restoreEditSnapshot(after);
+      }
+    ));
+  }
+
   private async sqlFromNaturalLanguage(document: ParquetLensDocument, nl: string): Promise<string> {
     const schema = await document.service.schema();
     const schemaText = schema.map((field) => `${field.name}: ${field.type}`).join("\n");
     return requestNl2Sql(this.nl2SqlConfig(), nl, schemaText);
+  }
+
+  private async runQueryWithSqlError(sql: string, limit: LimitSelection, document: ParquetLensDocument) {
+    try {
+      return await document.service.query(sql, limit);
+    } catch (error) {
+      throw new QueryExecutionError(sql, error instanceof Error ? error.message : String(error));
+    }
   }
 
   private nl2SqlConfig(): Nl2SqlConfig {
@@ -296,4 +389,13 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
+}
+
+class QueryExecutionError extends Error {
+  readonly sql: string;
+
+  constructor(sql: string, message: string) {
+    super(message);
+    this.sql = sql;
+  }
 }

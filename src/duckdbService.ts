@@ -36,6 +36,7 @@ export class DuckDbParquetService {
   private readonly conn: duckdb.Connection;
   private readonly parquetPath: string;
   private isEditing = false;
+  private snapshotCounter = 0;
 
   constructor(parquetPath: string) {
     this.parquetPath = parquetPath;
@@ -104,6 +105,95 @@ export class DuckDbParquetService {
     );
   }
 
+  async createEditSnapshot(): Promise<string> {
+    await this.ensureEditableTable();
+    const snapshotName = `parquet_lens_snapshot_${++this.snapshotCounter}`;
+    await this.run(`CREATE TEMP TABLE ${quoteIdentifier(snapshotName)} AS SELECT * FROM ${editTableName}`);
+    return snapshotName;
+  }
+
+  async restoreEditSnapshot(snapshotName: string): Promise<void> {
+    await this.run(`DROP TABLE IF EXISTS ${editTableName}`);
+    await this.run(`CREATE TABLE ${editTableName} AS SELECT * FROM ${quoteIdentifier(snapshotName)}`);
+    await this.createEditableView();
+    this.isEditing = true;
+  }
+
+  async deleteRows(rowIds: number[]): Promise<void> {
+    await this.ensureEditableTable();
+    const uniqueIds = [...new Set(rowIds)];
+    if (uniqueIds.length === 0) {
+      return;
+    }
+
+    await this.run(
+      `DELETE FROM ${editTableName} WHERE ${quoteIdentifier(editRowIdColumn)} IN (${uniqueIds.map(() => "?").join(", ")})`,
+      ...uniqueIds
+    );
+  }
+
+  async insertRow(anchorRowId: number | null, position: "above" | "below" | "end"): Promise<void> {
+    await this.ensureEditableTable();
+    const schema = await this.schema();
+    if (schema.length === 0) {
+      throw new Error("Add a column before adding rows.");
+    }
+
+    const rowId = await this.newRowId(anchorRowId, position);
+    const columns = [editRowIdColumn, ...schema.map((field) => field.name)];
+    const placeholders = columns.map(() => "?").join(", ");
+    await this.run(
+      `INSERT INTO ${editTableName} (${columns.map(quoteIdentifier).join(", ")}) VALUES (${placeholders})`,
+      rowId,
+      ...schema.map(() => null)
+    );
+  }
+
+  async deleteColumns(columnNames: string[]): Promise<void> {
+    await this.ensureEditableTable();
+    const schema = await this.schema();
+    const existing = new Set(schema.map((field) => field.name));
+    const toDelete = [...new Set(columnNames)].filter((columnName) => existing.has(columnName));
+    if (toDelete.length === 0) {
+      return;
+    }
+    if (toDelete.length >= schema.length) {
+      throw new Error("Cannot delete all columns. Add another column first.");
+    }
+
+    const nextColumns = schema
+      .map((field) => field.name)
+      .filter((columnName) => !toDelete.includes(columnName));
+    await this.rebuildEditTable(nextColumns);
+  }
+
+  async insertColumn(anchorColumnName: string | null, position: "left" | "right" | "end", columnName: string): Promise<void> {
+    await this.ensureEditableTable();
+    const normalized = columnName.trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(normalized)) {
+      throw new Error("Column name must start with a letter or underscore and contain only letters, numbers, and underscores.");
+    }
+
+    const schema = await this.schema();
+    if (schema.some((field) => field.name === normalized)) {
+      throw new Error(`Column already exists: ${normalized}`);
+    }
+
+    const currentColumns = schema.map((field) => field.name);
+    const anchorIndex = anchorColumnName ? currentColumns.indexOf(anchorColumnName) : -1;
+    const insertIndex = anchorIndex < 0 || position === "end"
+      ? currentColumns.length
+      : position === "left"
+        ? anchorIndex
+        : anchorIndex + 1;
+    const nextColumns = [
+      ...currentColumns.slice(0, insertIndex),
+      normalized,
+      ...currentColumns.slice(insertIndex)
+    ];
+    await this.rebuildEditTable(nextColumns, normalized);
+  }
+
   async save(): Promise<void> {
     if (!this.isEditing) {
       return;
@@ -146,9 +236,13 @@ export class DuckDbParquetService {
     }
 
     await this.run(`DROP TABLE IF EXISTS ${editTableName}`);
-    await this.run(`CREATE TABLE ${editTableName} AS SELECT row_number() OVER () - 1 AS ${quoteIdentifier(editRowIdColumn)}, * FROM read_parquet(${quoteString(this.parquetPath)}, binary_as_string = true)`);
-    await this.run(`CREATE OR REPLACE VIEW data AS SELECT * EXCLUDE (${quoteIdentifier(editRowIdColumn)}) FROM ${editTableName}`);
+    await this.run(`CREATE TABLE ${editTableName} AS SELECT (row_number() OVER () - 1)::DOUBLE AS ${quoteIdentifier(editRowIdColumn)}, * FROM read_parquet(${quoteString(this.parquetPath)}, binary_as_string = true)`);
+    await this.createEditableView();
     this.isEditing = true;
+  }
+
+  private async createEditableView(): Promise<void> {
+    await this.run(`CREATE OR REPLACE VIEW data AS SELECT * EXCLUDE (${quoteIdentifier(editRowIdColumn)}) FROM ${editTableName}`);
   }
 
   private async loadParquetExtension(): Promise<void> {
@@ -163,6 +257,46 @@ export class DuckDbParquetService {
   private async createReadOnlyView(): Promise<void> {
     await this.run(`DROP VIEW IF EXISTS data`);
     await this.run(`CREATE VIEW data AS SELECT * FROM read_parquet(${quoteString(this.parquetPath)}, binary_as_string = true)`);
+  }
+
+  private async newRowId(anchorRowId: number | null, position: "above" | "below" | "end"): Promise<number> {
+    const rows = await this.all(`SELECT ${quoteIdentifier(editRowIdColumn)} AS row_id FROM ${editTableName} ORDER BY ${quoteIdentifier(editRowIdColumn)}`) as Array<{ row_id: number }>;
+    if (rows.length === 0 || anchorRowId === null || position === "end") {
+      const maxRows = await this.all(`SELECT MAX(${quoteIdentifier(editRowIdColumn)}) AS max_id FROM ${editTableName}`) as Array<{ max_id: number | null }>;
+      return Number(maxRows[0]?.max_id ?? -1) + 1;
+    }
+
+    const ids = rows.map((row) => Number(row.row_id));
+    const index = ids.findIndex((id) => id === anchorRowId);
+    if (index < 0) {
+      return ids[ids.length - 1] + 1;
+    }
+
+    if (position === "above") {
+      const previous = index > 0 ? ids[index - 1] : ids[index] - 1;
+      return (previous + ids[index]) / 2;
+    }
+
+    const next = index < ids.length - 1 ? ids[index + 1] : ids[index] + 1;
+    return (ids[index] + next) / 2;
+  }
+
+  private async rebuildEditTable(orderedUserColumns: string[], insertedColumnName?: string): Promise<void> {
+    const tempName = `parquet_lens_rebuild_${++this.snapshotCounter}`;
+    const selectParts = [
+      quoteIdentifier(editRowIdColumn),
+      ...orderedUserColumns.map((columnName) => {
+        if (columnName === insertedColumnName) {
+          return `NULL::VARCHAR AS ${quoteIdentifier(columnName)}`;
+        }
+        return quoteIdentifier(columnName);
+      })
+    ];
+    await this.run(`CREATE TABLE ${quoteIdentifier(tempName)} AS SELECT ${selectParts.join(", ")} FROM ${editTableName}`);
+    await this.run(`DROP TABLE ${editTableName}`);
+    await this.run(`CREATE TABLE ${editTableName} AS SELECT * FROM ${quoteIdentifier(tempName)}`);
+    await this.run(`DROP TABLE ${quoteIdentifier(tempName)}`);
+    await this.createEditableView();
   }
 
   private editablePreviewSql(limit: LimitSelection): string {

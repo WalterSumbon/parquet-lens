@@ -21,7 +21,13 @@
     rowNumberCollapsed: false,
     rowNumberBase: 1,
     cellEditorHeight: null,
-    focusCellEditor: false
+    focusCellEditor: false,
+    gridScrollTop: 0,
+    gridScrollLeft: 0,
+    selectedRows: [],
+    selectedColumns: [],
+    dragSelection: null,
+    contextMenu: null
   };
 
   const app = document.getElementById("app");
@@ -34,10 +40,12 @@
   }
 
   function render() {
+    rememberGridScroll();
     app.innerHTML = "";
     const shell = el("div", "shell");
-    shell.append(toolbar(), nlConfig(), schemaPanel(), status(), editorBand(), grid());
+    shell.append(toolbar(), nlConfig(), schemaPanel(), status(), editorBand(), grid(), contextMenu());
     app.append(shell);
+    restoreGridScroll();
   }
 
   function toolbar() {
@@ -229,19 +237,32 @@
 
   function grid() {
     const wrap = el("div", "grid-wrap");
+    wrap.onscroll = () => {
+      state.gridScrollTop = wrap.scrollTop;
+      state.gridScrollLeft = wrap.scrollLeft;
+    };
+    wrap.oncontextmenu = (event) => {
+      if (state.rows.length === 0 || state.columns.length === 0) {
+        event.preventDefault();
+        openContextMenu(event.clientX, event.clientY, "blank", {});
+      }
+    };
     const table = el("table", "data-table");
     const header = el("tr");
     header.append(rowNumberHeader());
     for (const column of state.columns) {
-      header.append(el("th", "", column.name));
+      header.append(columnHeader(column.name));
     }
     table.append(header);
     state.rows.forEach((dataRow, rowIndex) => {
       const tr = el("tr");
-      tr.append(rowNumberCell(rowIndex));
+      tr.append(rowNumberCell(rowIndex, dataRow));
       for (const column of state.columns) {
         const cell = dataRow[column.name] || { display: "" };
         const td = el("td", state.editable ? "editable" : "");
+        if (isRowSelected(rowIndex) || isColumnSelected(column.name)) {
+          td.classList.add("range-selected");
+        }
         if (isSpecialCell(cell)) {
           td.classList.add("cell-special");
         }
@@ -269,6 +290,35 @@
     return wrap;
   }
 
+  function columnHeader(columnName) {
+    const th = el("th", isColumnSelected(columnName) ? "column-selected" : "", columnName);
+    th.onmousedown = (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+      state.dragSelection = { type: "column", start: columnName };
+      state.selected = null;
+      state.selectedRows = [];
+      state.selectedColumns = [columnName];
+      render();
+    };
+    th.onmousemove = () => {
+      if (state.dragSelection?.type === "column") {
+        selectColumnRange(state.dragSelection.start, columnName);
+      }
+    };
+    th.oncontextmenu = (event) => {
+      event.preventDefault();
+      if (!isColumnSelected(columnName)) {
+        state.selected = null;
+        state.selectedRows = [];
+        state.selectedColumns = [columnName];
+      }
+      openContextMenu(event.clientX, event.clientY, "column", { columnName });
+    };
+    return th;
+  }
+
   function selectCell(rowIndex, columnName, dataRow, cell, focusEditor) {
     state.selected = {
       rowIndex,
@@ -277,6 +327,8 @@
       rawValue: cell.value,
       display: cell.display
     };
+    state.selectedRows = [];
+    state.selectedColumns = [];
     state.focusCellEditor = Boolean(focusEditor);
     render();
   }
@@ -299,10 +351,40 @@
     return th;
   }
 
-  function rowNumberCell(rowIndex) {
+  function rowNumberCell(rowIndex, dataRow) {
     const td = el("td", state.rowNumberCollapsed ? "row-number row-number-collapsed" : "row-number");
+    if (isRowSelected(rowIndex)) {
+      td.classList.add("row-selected");
+    }
     td.title = state.rowNumberCollapsed ? "Click the header to expand row numbers" : `Displayed row ${rowIndex + state.rowNumberBase}`;
     td.textContent = state.rowNumberCollapsed ? "" : String(rowIndex + state.rowNumberBase);
+    td.onmousedown = (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+      state.dragSelection = { type: "row", start: rowIndex };
+      state.selected = null;
+      state.selectedColumns = [];
+      state.selectedRows = [rowIndex];
+      render();
+    };
+    td.onmousemove = () => {
+      if (state.dragSelection?.type === "row") {
+        selectRowRange(state.dragSelection.start, rowIndex);
+      }
+    };
+    td.oncontextmenu = (event) => {
+      event.preventDefault();
+      if (!isRowSelected(rowIndex)) {
+        state.selected = null;
+        state.selectedColumns = [];
+        state.selectedRows = [rowIndex];
+      }
+      openContextMenu(event.clientX, event.clientY, "row", {
+        rowIndex,
+        rowId: state.editRowIdColumn ? dataRow[state.editRowIdColumn] : null
+      });
+    };
     return td;
   }
 
@@ -356,6 +438,91 @@
     });
   }
 
+  function contextMenu() {
+    if (!state.contextMenu) {
+      return el("div", "context-menu hidden");
+    }
+    const menu = el("div", "context-menu");
+    menu.style.left = `${state.contextMenu.x}px`;
+    menu.style.top = `${state.contextMenu.y}px`;
+    for (const item of contextMenuItems()) {
+      const button = el("button", "", item.label);
+      button.onclick = () => {
+        const action = item.action;
+        closeContextMenu();
+        action();
+      };
+      menu.append(button);
+    }
+    return menu;
+  }
+
+  function contextMenuItems() {
+    const menu = state.contextMenu;
+    if (menu.kind === "row") {
+      return [
+        { label: "Insert row above", action: () => insertRow(menu.rowId, "above") },
+        { label: "Insert row below", action: () => insertRow(menu.rowId, "below") },
+        { label: `Delete ${state.selectedRows.length || 1} row(s)`, action: () => deleteSelectedRows() }
+      ];
+    }
+    if (menu.kind === "column") {
+      return [
+        { label: "Insert column left", action: () => insertColumn(menu.columnName, "left") },
+        { label: "Insert column right", action: () => insertColumn(menu.columnName, "right") },
+        { label: `Delete ${state.selectedColumns.length || 1} column(s)`, action: () => deleteSelectedColumns() }
+      ];
+    }
+    return [
+      { label: "Add row", action: () => insertRow(null, "end") },
+      { label: "Add column", action: () => insertColumn(null, "end") }
+    ];
+  }
+
+  function openContextMenu(x, y, kind, payload) {
+    state.contextMenu = { x, y, kind, ...payload };
+    render();
+  }
+
+  function closeContextMenu() {
+    state.contextMenu = null;
+    render();
+  }
+
+  function insertRow(anchorRowId, position) {
+    request("insertRow", { anchorRowId: anchorRowId === undefined ? null : anchorRowId, position });
+  }
+
+  function deleteSelectedRows() {
+    const rowIds = state.selectedRows
+      .map((rowIndex) => state.rows[rowIndex])
+      .map((row) => state.editRowIdColumn ? row?.[state.editRowIdColumn] : undefined)
+      .filter((rowId) => rowId !== undefined)
+      .map(Number);
+    request("deleteRows", { rowIds });
+  }
+
+  function insertColumn(anchorColumnName, position) {
+    const columnName = window.prompt("New column name", nextColumnName());
+    if (!columnName) {
+      return;
+    }
+    request("insertColumn", { anchorColumnName: anchorColumnName ?? null, position, columnName });
+  }
+
+  function deleteSelectedColumns() {
+    request("deleteColumns", { columnNames: state.selectedColumns });
+  }
+
+  function nextColumnName() {
+    let index = 1;
+    const existing = new Set(state.columns.map((column) => column.name));
+    while (existing.has(`new_column_${index}`)) {
+      index += 1;
+    }
+    return `new_column_${index}`;
+  }
+
   function applyCellEdit(value) {
     if (!state.selected || !state.editable || state.selected.rowId === undefined) {
       return;
@@ -406,6 +573,22 @@
       return;
     }
 
+    if (message.command === "structuralEditApplied") {
+      state.sqlText = message.sql || "SELECT * FROM data";
+      state.schema = message.schema || state.schema;
+      state.columns = message.columns || [];
+      state.rows = message.rows || [];
+      state.rowCount = message.rowCount || 0;
+      state.columnCount = message.columnCount || 0;
+      state.editable = Boolean(message.editable);
+      state.selected = null;
+      state.selectedRows = [];
+      state.selectedColumns = [];
+      state.editRowIdColumn = message.editRowIdColumn || state.editRowIdColumn;
+      render();
+      return;
+    }
+
     if (message.command === "nl2sqlConfigSaved") {
       state.nl2sql = message.nl2sql || state.nl2sql;
       return;
@@ -418,6 +601,10 @@
 
     if (message.command === "error") {
       if (message.requestId === state.currentQueryRequestId) {
+        if (message.sql) {
+          state.mode = "sql";
+          state.sqlText = message.sql;
+        }
         state.currentQueryRequestId = null;
         state.isRunning = false;
         render();
@@ -446,6 +633,72 @@
       pasteIntoSelectedCell();
     }
   });
+
+  window.addEventListener("mouseup", () => {
+    state.dragSelection = null;
+  });
+
+  window.addEventListener("click", (event) => {
+    if (state.contextMenu && !event.target.closest(".context-menu")) {
+      state.contextMenu = null;
+      render();
+    }
+  });
+
+  function selectRowRange(start, end) {
+    const [from, to] = start < end ? [start, end] : [end, start];
+    state.selectedRows = [];
+    for (let index = from; index <= to; index += 1) {
+      state.selectedRows.push(index);
+    }
+    state.selectedColumns = [];
+    state.selected = null;
+    render();
+  }
+
+  function selectColumnRange(startColumn, endColumn) {
+    const names = state.columns.map((column) => column.name);
+    const start = names.indexOf(startColumn);
+    const end = names.indexOf(endColumn);
+    if (start < 0 || end < 0) {
+      return;
+    }
+    const [from, to] = start < end ? [start, end] : [end, start];
+    state.selectedColumns = names.slice(from, to + 1);
+    state.selectedRows = [];
+    state.selected = null;
+    render();
+  }
+
+  function isRowSelected(rowIndex) {
+    return state.selectedRows.includes(rowIndex);
+  }
+
+  function isColumnSelected(columnName) {
+    return state.selectedColumns.includes(columnName);
+  }
+
+  function rememberGridScroll() {
+    const grid = document.querySelector(".grid-wrap");
+    if (!grid) {
+      return;
+    }
+    state.gridScrollTop = grid.scrollTop;
+    state.gridScrollLeft = grid.scrollLeft;
+  }
+
+  function restoreGridScroll() {
+    const grid = document.querySelector(".grid-wrap");
+    if (!grid) {
+      return;
+    }
+    grid.scrollTop = state.gridScrollTop;
+    grid.scrollLeft = state.gridScrollLeft;
+    window.requestAnimationFrame(() => {
+      grid.scrollTop = state.gridScrollTop;
+      grid.scrollLeft = state.gridScrollLeft;
+    });
+  }
 
   async function copySelectedCell() {
     try {

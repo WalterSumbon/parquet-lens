@@ -22,6 +22,10 @@ It is designed for large local Parquet files, SQL-driven inspection, and practic
 - Reset query and view state back to the default preview without discarding unsaved edits.
 - Copy and paste the selected cell with `Cmd+C`/`Cmd+V` on macOS or `Ctrl+C`/`Ctrl+V` on Windows/Linux.
 - Double-click a cell to focus the full-value editor for immediate editing.
+- Preserve grid scroll position when selecting cells in large result sets.
+- Drag-select row numbers or column headers, then right-click to delete selected rows or columns.
+- Right-click row numbers or column headers to insert rows above/below or columns left/right.
+- Right-click an empty grid area to create a row or column when the current result has no rows or columns.
 - Generate SQL from natural language with OpenAI-compatible `/chat/completions` APIs.
 
 ## Install
@@ -31,7 +35,7 @@ It is designed for large local Parquet files, SQL-driven inspection, and practic
 Download the latest `.vsix` from the GitHub Releases page, then install it with:
 
 ```bash
-code --install-extension parquet-lens-0.1.0.vsix --force
+code --install-extension parquet-lens-0.1.6.vsix --force
 ```
 
 Reload VS Code after installation:
@@ -45,7 +49,7 @@ Reload VS Code after installation:
 npm install
 npm test
 npm run package
-code --install-extension parquet-lens-0.1.0.vsix --force
+code --install-extension parquet-lens-0.1.6.vsix --force
 ```
 
 ## Usage
@@ -61,6 +65,8 @@ code --install-extension parquet-lens-0.1.0.vsix --force
 9. Left-click the row number header to collapse or expand row numbers; right-click it to switch between 0-based and 1-based numbering.
 10. Use Reset to return to the default SQL preview, default limit, row numbering, and cleared selection. Reset does not discard unsaved data edits.
 11. Select a cell and use `Cmd+C`/`Ctrl+C` or `Cmd+V`/`Ctrl+V` to copy or paste its full value. Double-click a cell to start editing in the full-value editor.
+12. Drag across row numbers or column headers to select a range, then right-click the selection to delete it.
+13. Right-click a row number to insert a row above or below; right-click a column header to insert a column left or right.
 
 Editable queries include simple single-table `SELECT` queries against `data`, including `WHERE`, `ORDER BY`, and `LIMIT`. Aggregations, `DISTINCT`, joins, unions, grouped queries, and expression columns are read-only to avoid unsafe writes.
 
@@ -78,6 +84,8 @@ Switch to NL mode to generate SQL from natural language. Configure the OpenAI-co
 - `parquetLens.nl2sql.headers`
 
 The prompt template must include `{{nl}}`. It may also include `{{schema}}`.
+
+When NL2SQL produces SQL but that SQL fails validation or execution, Parquet Lens switches back to SQL mode and leaves the generated SQL in the input so you can inspect and fix it.
 
 ## Development
 
