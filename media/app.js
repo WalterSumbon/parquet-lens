@@ -503,11 +503,11 @@
   }
 
   function insertColumn(anchorColumnName, position) {
-    const columnName = window.prompt("New column name", nextColumnName());
-    if (!columnName) {
-      return;
-    }
-    request("insertColumn", { anchorColumnName: anchorColumnName ?? null, position, columnName });
+    request("insertColumn", {
+      anchorColumnName: anchorColumnName ?? null,
+      position,
+      suggestedColumnName: nextColumnName()
+    });
   }
 
   function deleteSelectedColumns() {

@@ -53,7 +53,8 @@ type WebviewRequest = WebviewQueryRequest | WebviewEditRequest | {
   readonly requestId: string;
   readonly anchorColumnName: string | null;
   readonly position: "left" | "right" | "end";
-  readonly columnName: string;
+  readonly columnName?: string;
+  readonly suggestedColumnName?: string;
 };
 
 class ParquetLensDocument implements vscode.CustomDocument {
@@ -248,7 +249,11 @@ class ParquetLensProvider implements vscode.CustomEditorProvider<ParquetLensDocu
     }
 
     if (message.command === "insertColumn") {
-      await this.applyStructuralEdit(document, "Insert column", () => document.service.insertColumn(message.anchorColumnName, message.position, message.columnName));
+      const columnName = message.columnName ?? await this.promptColumnName(document, message.suggestedColumnName);
+      if (!columnName) {
+        return;
+      }
+      await this.applyStructuralEdit(document, "Insert column", () => document.service.insertColumn(message.anchorColumnName, message.position, columnName));
       await this.postDefaultRefresh(document, webview, message.requestId);
       return;
     }
@@ -311,6 +316,38 @@ class ParquetLensProvider implements vscode.CustomEditorProvider<ParquetLensDocu
         await document.service.restoreEditSnapshot(after);
       }
     ));
+  }
+
+  private async promptColumnName(document: ParquetLensDocument, suggestedColumnName?: string): Promise<string | undefined> {
+    const schema = await document.service.schema();
+    const existing = new Set(schema.map((field) => field.name));
+    return vscode.window.showInputBox({
+      title: "Insert Column",
+      prompt: "Enter a new column name.",
+      value: suggestedColumnName ?? this.nextColumnName(schema.map((field) => field.name)),
+      validateInput: (value) => {
+        const normalized = value.trim();
+        if (normalized.length === 0) {
+          return "Column name is required.";
+        }
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(normalized)) {
+          return "Column name must start with a letter or underscore and contain only letters, numbers, and underscores.";
+        }
+        if (existing.has(normalized)) {
+          return `Column already exists: ${normalized}`;
+        }
+        return undefined;
+      }
+    }).then((value) => value?.trim());
+  }
+
+  private nextColumnName(columnNames: string[]): string {
+    let index = 1;
+    const existing = new Set(columnNames);
+    while (existing.has(`new_column_${index}`)) {
+      index += 1;
+    }
+    return `new_column_${index}`;
   }
 
   private async sqlFromNaturalLanguage(document: ParquetLensDocument, nl: string): Promise<string> {

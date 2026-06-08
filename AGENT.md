@@ -21,5 +21,6 @@ Project decisions for Parquet Lens.
 - Selected cells support Cmd/Ctrl+C and Cmd/Ctrl+V for full-value copy/paste when focus is not already inside an input. Double-clicking a cell focuses the full-value editor. The full-value editor height should persist across cell selection changes.
 - Selecting cells in large result grids must preserve the current grid scroll position.
 - Row and column structural edits are UI-driven: drag-select row numbers or column headers, then use the context menu to delete or insert rows/columns. SQL/NL preview execution remains read-only and is not used for bulk editing.
+- Column insertion must collect the new column name with VS Code `showInputBox`; webview `window.prompt` is not reliable in VS Code.
 - When NL2SQL generates SQL and that generated SQL fails validation or execution, the SQL input must still switch to SQL mode and show the generated SQL.
 - Do not add a standalone README unless the user explicitly asks for one.
