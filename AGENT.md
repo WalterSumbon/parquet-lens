@@ -8,6 +8,7 @@ Project decisions for Parquet Lens.
 - Editing is not in-place Parquet mutation. The first edit materializes the file into a temporary DuckDB table, edits update that table, and save atomically rewrites the Parquet file.
 - Tests live under `tests/`.
 - Release packages are built with `npm run package`; sample Parquet files live under `samples/` and are excluded from VSIX packages.
+- For release candidates, package and install the VSIX into local VS Code first, then wait for explicit user approval before uploading a GitHub release or Marketplace update.
 - The extension icon is `media/icon.png` and must remain a 128x128 PNG included in VSIX packages.
 - VS Code Marketplace manual publishing and updates can be done at https://marketplace.visualstudio.com/manage/publishers/xiahan.
 - Values sent to the webview must be JSON/structured-clone safe. DuckDB can return BigInt values, including generated row ids, so rows are serialized before `webview.postMessage`.
@@ -21,6 +22,6 @@ Project decisions for Parquet Lens.
 - Selected cells support Cmd/Ctrl+C and Cmd/Ctrl+V for full-value copy/paste when focus is not already inside an input. Double-clicking a cell focuses the full-value editor. The full-value editor height should persist across cell selection changes.
 - Selecting cells in large result grids must preserve the current grid scroll position.
 - Row and column structural edits are UI-driven: drag-select row numbers or column headers, then use the context menu to delete or insert rows/columns. SQL/NL preview execution remains read-only and is not used for bulk editing.
-- Column insertion must collect the new column name with VS Code `showInputBox`; webview `window.prompt` is not reliable in VS Code.
+- Column insertion must collect the new column name with VS Code `showInputBox` and the column type with a VS Code QuickPick list ordered by common usage, starting with `VARCHAR`; webview `window.prompt` is not reliable in VS Code.
 - When NL2SQL generates SQL and that generated SQL fails validation or execution, the SQL input must still switch to SQL mode and show the generated SQL.
 - Do not add a standalone README unless the user explicitly asks for one.

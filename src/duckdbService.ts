@@ -30,6 +30,8 @@ const editRowIdColumn = "__parquet_lens_internal_row_id__9f6f0f79";
 const editTableName = "parquet_lens_edit";
 const legacyInternalColumnPattern = /^__parquet_lens_row_id(?:_\d+)?$/u;
 const currentInternalColumnPattern = /^__parquet_lens_internal_row_id__9f6f0f79(?:_\d+)?$/u;
+const insertColumnTypeOptions = ["VARCHAR", "BIGINT", "DOUBLE", "BOOLEAN", "TIMESTAMP", "DATE", "INTEGER", "DECIMAL(18,2)", "FLOAT", "BLOB"] as const;
+type InsertColumnType = typeof insertColumnTypeOptions[number];
 
 export class DuckDbParquetService {
   private readonly db: duckdb.Database;
@@ -167,12 +169,13 @@ export class DuckDbParquetService {
     await this.rebuildEditTable(nextColumns);
   }
 
-  async insertColumn(anchorColumnName: string | null, position: "left" | "right" | "end", columnName: string): Promise<void> {
+  async insertColumn(anchorColumnName: string | null, position: "left" | "right" | "end", columnName: string, columnType = "VARCHAR"): Promise<void> {
     await this.ensureEditableTable();
     const normalized = columnName.trim();
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(normalized)) {
       throw new Error("Column name must start with a letter or underscore and contain only letters, numbers, and underscores.");
     }
+    const normalizedType = normalizeInsertColumnType(columnType);
 
     const schema = await this.schema();
     if (schema.some((field) => field.name === normalized)) {
@@ -191,7 +194,7 @@ export class DuckDbParquetService {
       normalized,
       ...currentColumns.slice(insertIndex)
     ];
-    await this.rebuildEditTable(nextColumns, normalized);
+    await this.rebuildEditTable(nextColumns, normalized, normalizedType);
   }
 
   async save(): Promise<void> {
@@ -281,13 +284,13 @@ export class DuckDbParquetService {
     return (ids[index] + next) / 2;
   }
 
-  private async rebuildEditTable(orderedUserColumns: string[], insertedColumnName?: string): Promise<void> {
+  private async rebuildEditTable(orderedUserColumns: string[], insertedColumnName?: string, insertedColumnType: InsertColumnType = "VARCHAR"): Promise<void> {
     const tempName = `parquet_lens_rebuild_${++this.snapshotCounter}`;
     const selectParts = [
       quoteIdentifier(editRowIdColumn),
       ...orderedUserColumns.map((columnName) => {
         if (columnName === insertedColumnName) {
-          return `NULL::VARCHAR AS ${quoteIdentifier(columnName)}`;
+          return `NULL::${insertedColumnType} AS ${quoteIdentifier(columnName)}`;
         }
         return quoteIdentifier(columnName);
       })
@@ -441,4 +444,12 @@ function isEditableTail(tail: string): boolean {
   return !/\b(JOIN|UNION|INTERSECT|EXCEPT|GROUP\s+BY|HAVING|PIVOT|UNPIVOT)\b/iu.test(tail);
 }
 
-export { editRowIdColumn };
+function normalizeInsertColumnType(columnType: string): InsertColumnType {
+  const normalized = columnType.trim().toUpperCase();
+  if ((insertColumnTypeOptions as readonly string[]).includes(normalized)) {
+    return normalized as InsertColumnType;
+  }
+  throw new Error(`Unsupported column type: ${columnType}`);
+}
+
+export { editRowIdColumn, insertColumnTypeOptions };

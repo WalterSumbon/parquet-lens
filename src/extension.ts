@@ -1,6 +1,6 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { DuckDbParquetService, editRowIdColumn } from "./duckdbService";
+import { DuckDbParquetService, editRowIdColumn, insertColumnTypeOptions } from "./duckdbService";
 import { requestNl2Sql, Nl2SqlConfig } from "./nl2sql";
 import { columnsFromSchema, serializeRowForWebview } from "./serialization";
 import { assertReadOnlyQuery, LimitSelection } from "./sql";
@@ -54,6 +54,7 @@ type WebviewRequest = WebviewQueryRequest | WebviewEditRequest | {
   readonly anchorColumnName: string | null;
   readonly position: "left" | "right" | "end";
   readonly columnName?: string;
+  readonly columnType?: string;
   readonly suggestedColumnName?: string;
 };
 
@@ -253,7 +254,11 @@ class ParquetLensProvider implements vscode.CustomEditorProvider<ParquetLensDocu
       if (!columnName) {
         return;
       }
-      await this.applyStructuralEdit(document, "Insert column", () => document.service.insertColumn(message.anchorColumnName, message.position, columnName));
+      const columnType = message.columnType ?? await this.promptColumnType();
+      if (!columnType) {
+        return;
+      }
+      await this.applyStructuralEdit(document, "Insert column", () => document.service.insertColumn(message.anchorColumnName, message.position, columnName, columnType));
       await this.postDefaultRefresh(document, webview, message.requestId);
       return;
     }
@@ -339,6 +344,20 @@ class ParquetLensProvider implements vscode.CustomEditorProvider<ParquetLensDocu
         return undefined;
       }
     }).then((value) => value?.trim());
+  }
+
+  private async promptColumnType(): Promise<string | undefined> {
+    const picked = await vscode.window.showQuickPick(
+      insertColumnTypeOptions.map((type, index) => ({
+        label: type,
+        description: index === 0 ? "Default" : undefined
+      })),
+      {
+        title: "Insert Column",
+        placeHolder: "Select the new column type"
+      }
+    );
+    return picked?.label;
   }
 
   private nextColumnName(columnNames: string[]): string {

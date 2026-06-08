@@ -24,7 +24,7 @@ It is designed for large local Parquet files, SQL-driven inspection, and practic
 - Double-click a cell to focus the full-value editor for immediate editing.
 - Preserve grid scroll position when selecting cells in large result sets.
 - Drag-select row numbers or column headers, then right-click to delete selected rows or columns.
-- Right-click row numbers or column headers to insert rows above/below or columns left/right; column insertion asks for the new name in a VS Code input box.
+- Right-click row numbers or column headers to insert rows above/below or columns left/right; column insertion asks for the new name and then shows a type dropdown with `VARCHAR` first.
 - Right-click an empty grid area to create a row or column when the current result has no rows or columns.
 - Generate SQL from natural language with OpenAI-compatible `/chat/completions` APIs.
 
@@ -35,7 +35,7 @@ It is designed for large local Parquet files, SQL-driven inspection, and practic
 Download the latest `.vsix` from the GitHub Releases page, then install it with:
 
 ```bash
-code --install-extension parquet-lens-0.1.7.vsix --force
+code --install-extension parquet-lens-0.1.6.vsix --force
 ```
 
 Reload VS Code after installation:
@@ -49,7 +49,7 @@ Reload VS Code after installation:
 npm install
 npm test
 npm run package
-code --install-extension parquet-lens-0.1.7.vsix --force
+code --install-extension parquet-lens-0.1.6.vsix --force
 ```
 
 ## Usage
@@ -66,7 +66,7 @@ code --install-extension parquet-lens-0.1.7.vsix --force
 10. Use Reset to return to the default SQL preview, default limit, row numbering, and cleared selection. Reset does not discard unsaved data edits.
 11. Select a cell and use `Cmd+C`/`Ctrl+C` or `Cmd+V`/`Ctrl+V` to copy or paste its full value. Double-click a cell to start editing in the full-value editor.
 12. Drag across row numbers or column headers to select a range, then right-click the selection to delete it.
-13. Right-click a row number to insert a row above or below; right-click a column header to insert a column left or right, then enter the new column name in the VS Code input box.
+13. Right-click a row number to insert a row above or below; right-click a column header to insert a column left or right, then enter the new column name and choose its type from the dropdown.
 
 Editable queries include simple single-table `SELECT` queries against `data`, including `WHERE`, `ORDER BY`, and `LIMIT`. Aggregations, `DISTINCT`, joins, unions, grouped queries, and expression columns are read-only to avoid unsafe writes.
 

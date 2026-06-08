@@ -209,6 +209,30 @@ test("inserts and deletes columns through the edit table", async () => {
   await fs.rm(dir, { recursive: true, force: true });
 });
 
+test("inserts typed columns and rejects unsupported inserted column types", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "parquet-lens-test-"));
+  const parquetPath = path.join(dir, "fixture.parquet");
+  await createFixture(parquetPath);
+
+  const service = new DuckDbParquetService(parquetPath);
+  await service.initialize();
+  await service.insertColumn("name", "right", "score", "DOUBLE");
+  const schema = await service.schema();
+  assert.deepEqual(schema.map((field) => [field.name, field.type]), [
+    ["id", "INTEGER"],
+    ["name", "VARCHAR"],
+    ["score", "DOUBLE"],
+    ["note", "VARCHAR"]
+  ]);
+  await assert.rejects(
+    () => service.insertColumn("score", "right", "bad_type", "VARCHAR); DROP TABLE parquet_lens_edit; --"),
+    /Unsupported column type/
+  );
+  service.close();
+
+  await fs.rm(dir, { recursive: true, force: true });
+});
+
 async function createFixture(parquetPath) {
   const db = new duckdb.Database(":memory:");
   const conn = db.connect();
